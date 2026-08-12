@@ -1,6 +1,9 @@
 import Link from 'next/link';
+import { SignUpButton } from '@clerk/nextjs';
+import { auth } from '@clerk/nextjs/server';
 
-export default function Hero() {
+export default async function Hero() {
+  const { userId } = await auth();
   return (
     <section className="relative overflow-hidden pt-24 pb-32 sm:pt-32 sm:pb-40">
       {/* Background ambient glow */}
@@ -29,12 +32,20 @@ export default function Hero() {
 
           {/* CTAs */}
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto">
-            <Link
-              href="/signup"
-              className="w-full sm:w-auto inline-flex h-12 items-center justify-center rounded-md bg-accent px-8 text-base font-medium text-accent-foreground shadow-sm transition-all hover:bg-accent-hover hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            >
-              Start closing deals
-            </Link>
+            {!userId ? (
+              <SignUpButton fallbackRedirectUrl="/app">
+                <button className="w-full sm:w-auto inline-flex h-12 items-center justify-center rounded-md bg-accent px-8 text-base font-medium text-accent-foreground shadow-sm transition-all hover:bg-accent-hover hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+                  Start closing deals
+                </button>
+              </SignUpButton>
+            ) : (
+              <Link
+                href="/app"
+                className="w-full sm:w-auto inline-flex h-12 items-center justify-center rounded-md bg-accent px-8 text-base font-medium text-accent-foreground shadow-sm transition-all hover:bg-accent-hover hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                Start closing deals
+              </Link>
+            )}
             <Link
               href="/demo"
               className="w-full sm:w-auto inline-flex h-12 items-center justify-center rounded-md border border-border bg-transparent px-8 text-base font-medium text-foreground transition-all hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border focus-visible:ring-offset-2 focus-visible:ring-offset-background"

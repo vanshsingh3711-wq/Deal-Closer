@@ -1,6 +1,9 @@
 import Link from 'next/link';
+import { SignInButton, SignUpButton } from '@clerk/nextjs';
+import { auth } from '@clerk/nextjs/server';
 
-export default function Navbar() {
+export default async function Navbar() {
+  const { userId } = await auth();
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-md">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
@@ -53,18 +56,27 @@ export default function Navbar() {
 
           {/* Actions */}
           <div className="flex items-center gap-4">
-            <Link
-              href="/login"
-              className="hidden sm:inline-flex text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm px-2 py-1"
-            >
-              Log in
-            </Link>
-            <Link
-              href="/signup"
-              className="inline-flex h-9 items-center justify-center rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground shadow-sm transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50"
-            >
-              Start closing deals
-            </Link>
+            {!userId ? (
+              <>
+                <SignInButton fallbackRedirectUrl="/app">
+                  <button className="hidden sm:inline-flex text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-sm px-2 py-1">
+                    Log in
+                  </button>
+                </SignInButton>
+                <SignUpButton fallbackRedirectUrl="/app">
+                  <button className="inline-flex h-9 items-center justify-center rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground shadow-sm transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50">
+                    Start closing deals
+                  </button>
+                </SignUpButton>
+              </>
+            ) : (
+              <Link
+                href="/app"
+                className="inline-flex h-9 items-center justify-center rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground shadow-sm transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50"
+              >
+                Open CRM
+              </Link>
+            )}
           </div>
 
         </div>
