@@ -38,4 +38,5 @@ export interface Lead {
   activities: LeadActivity[];
   outreach: LeadOutreach[];
   note: LeadNote;
+  archived?: boolean;
 }

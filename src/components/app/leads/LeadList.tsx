@@ -1,20 +1,80 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { LeadToolbar } from "./LeadToolbar";
 import { LeadTable } from "./LeadTable";
 import { LeadEmptyState } from "./LeadEmptyState";
 import { MOCK_LEADS } from "./mockData";
-import { SortOption } from "./types";
+import { SortOption, Lead } from "./types";
 
 export function LeadList() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [sortBy, setSortBy] = useState<SortOption>("Recently added");
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchLeads() {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const response = await fetch(`${apiUrl}/api/leads`);
+        if (response.ok) {
+          const data = await response.json();
+          // Map backend leads to frontend format
+          const mappedLeads: Lead[] = data.map((backendLead: any) => {
+            const addedAtMs = new Date(backendLead.date_added).getTime();
+            const contactedAtMs = backendLead.last_contacted ? new Date(backendLead.last_contacted).getTime() : 0;
+            
+            // Map backend stage to frontend status
+            const statusMap: Record<string, any> = {
+              "new": "NEW",
+              "verified": "NEW", // frontend doesn't have verified
+              "contacted": "CONTACTED",
+              "opened": "OPENED",
+              "replied": "REPLIED",
+              "followup1": "CONTACTED",
+              "followup2": "CONTACTED",
+              "closed": "CLOSED"
+            };
+            
+            return {
+              id: backendLead.id,
+              name: backendLead.name,
+              company: backendLead.company,
+              role: "", // No job title in phase 1 backend
+              email: backendLead.email,
+              status: statusMap[backendLead.stage] || "NEW",
+              source: backendLead.source === "linkedin_csv" ? "LinkedIn CSV" : (backendLead.source === "directory" ? "Directory" : "Manual"),
+              lastActivity: "Added to CRM",
+              nextFollowUp: "-",
+              addedAt: addedAtMs,
+              contactedAt: contactedAtMs,
+              followUpAt: 0,
+              activities: [],
+              outreach: [],
+              note: { id: "n1", content: backendLead.notes || "", updatedAt: backendLead.date_added }
+            };
+          });
+          setLeads(mappedLeads);
+        } else {
+          console.error("Failed to fetch leads");
+          setLeads(MOCK_LEADS);
+        }
+      } catch (error) {
+        console.error("Error fetching leads:", error);
+        setLeads(MOCK_LEADS);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    fetchLeads();
+  }, []);
 
   const filteredAndSortedLeads = useMemo(() => {
-    let result = [...MOCK_LEADS];
+    let result = [...leads];
 
     // Search filter
     if (searchQuery.trim() !== "") {
@@ -53,7 +113,7 @@ export function LeadList() {
     });
 
     return result;
-  }, [searchQuery, statusFilter, sortBy]);
+  }, [searchQuery, statusFilter, sortBy, leads]);
 
   const hasFilters = searchQuery !== "" || statusFilter !== "All";
 
@@ -81,7 +141,12 @@ export function LeadList() {
       />
 
       <div className="pb-12">
-        {filteredAndSortedLeads.length > 0 ? (
+        {isLoading ? (
+          <div className="py-24 text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-accent border-r-transparent"></div>
+            <p className="mt-4 text-sm text-muted-foreground font-medium">Loading leads...</p>
+          </div>
+        ) : filteredAndSortedLeads.length > 0 ? (
           <LeadTable leads={filteredAndSortedLeads} />
         ) : (
           <LeadEmptyState hasFilters={hasFilters} />
