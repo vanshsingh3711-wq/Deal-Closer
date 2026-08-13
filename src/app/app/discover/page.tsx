@@ -9,6 +9,19 @@ type Person = {
   title: string | null;
   profile_url: string | null;
   source_url: string;
+  decision_maker_score?: number | null;
+  decision_maker_category?: string | null;
+};
+
+type Email = {
+  id: string;
+  email: string;
+  email_type: string;
+  status: string;
+  person_id: string | null;
+  source_url: string | null;
+  verification_status?: string;
+  mx_found?: boolean;
 };
 
 type DiscoveryResult = {
@@ -29,7 +42,7 @@ type DiscoveryResult = {
 };
 
 export default function DiscoverPage() {
-  const { getToken } = useAuth();
+  const { getToken, userId } = useAuth();
   const [website, setWebsite] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +50,13 @@ export default function DiscoverPage() {
   const [people, setPeople] = useState<Person[] | null>(null);
   const [loadingPeople, setLoadingPeople] = useState(false);
   const [peopleError, setPeopleError] = useState<string | null>(null);
+  const [rankingPeople, setRankingPeople] = useState(false);
+  const [rankError, setRankError] = useState<string | null>(null);
+  const [emails, setEmails] = useState<Email[] | null>(null);
+  const [extractingEmails, setExtractingEmails] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [verifyingEmailIds, setVerifyingEmailIds] = useState<Set<string>>(new Set());
+  const [bulkVerifying, setBulkVerifying] = useState<{current: number, total: number} | null>(null);
 
   const handleDiscover = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +73,7 @@ export default function DiscoverPage() {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          ...(userId ? { "X-User-Id": userId } : {}),
         },
         body: JSON.stringify({ website }),
       });
@@ -85,6 +106,7 @@ export default function DiscoverPage() {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          ...(userId ? { "X-User-Id": userId } : {}),
         },
       });
 
@@ -99,6 +121,125 @@ export default function DiscoverPage() {
       setPeopleError(err.message || "An unexpected error occurred");
     } finally {
       setLoadingPeople(false);
+    }
+  };
+
+  const handleRankPeople = async () => {
+    if (!result?.company?.id) return;
+    
+    setRankingPeople(true);
+    setRankError(null);
+
+    try {
+      const token = await getToken();
+      const res = await fetch(`http://localhost:8000/api/discovery/company/${result.company.id}/rank-people`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          ...(userId ? { "X-User-Id": userId } : {}),
+        },
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || "Failed to rank people");
+      }
+
+      const data = await res.json();
+      setPeople(data.people);
+    } catch (err: any) {
+      setRankError(err.message || "An unexpected error occurred");
+    } finally {
+      setRankingPeople(false);
+    }
+  };
+
+  const handleExtractEmails = async () => {
+    if (!result?.company?.id) return;
+    
+    setExtractingEmails(true);
+    setEmailError(null);
+
+    try {
+      const token = await getToken();
+      const res = await fetch(`http://localhost:8000/api/discovery/company/${result.company.id}/emails`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          ...(userId ? { "X-User-Id": userId } : {}),
+        },
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || "Failed to extract emails");
+      }
+
+      const data = await res.json();
+      setEmails(data.emails);
+    } catch (err: any) {
+      setEmailError(err.message || "An unexpected error occurred");
+    } finally {
+      setExtractingEmails(false);
+    }
+  };
+
+  const handleVerifyEmail = async (emailId: string) => {
+    setVerifyingEmailIds(prev => new Set(prev).add(emailId));
+    try {
+      const token = await getToken();
+      const res = await fetch(`http://localhost:8000/api/discovery/email/${emailId}/verify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          ...(userId ? { "X-User-Id": userId } : {}),
+        },
+      });
+      if (res.ok) {
+        const verifiedEmail = await res.json();
+        setEmails(prev => prev ? prev.map(e => e.id === emailId ? { ...e, ...verifiedEmail } : e) : null);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setVerifyingEmailIds(prev => {
+        const next = new Set(prev);
+        next.delete(emailId);
+        return next;
+      });
+    }
+  };
+
+  const handleBulkVerifyEmails = async () => {
+    if (!result?.company?.id || !emails) return;
+    
+    const unverified = emails.filter(e => e.verification_status === "unverified" || !e.verification_status);
+    if (unverified.length === 0) return;
+    
+    setBulkVerifying({ current: 0, total: Math.min(25, unverified.length) });
+    
+    try {
+      const token = await getToken();
+      const res = await fetch(`http://localhost:8000/api/discovery/company/${result.company.id}/verify-emails`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          ...(userId ? { "X-User-Id": userId } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const updatedDict = Object.fromEntries(data.emails.map((e: any) => [e.id, e]));
+        setEmails(prev => prev ? prev.map(e => updatedDict[e.id] ? { ...e, ...updatedDict[e.id] } : e) : null);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setBulkVerifying(null);
     }
   };
 
@@ -242,14 +383,98 @@ export default function DiscoverPage() {
               </div>
             )}
           </div>
+          
+          {emails && emails.filter(e => !e.person_id).length > 0 && (
+            <div className="p-6 border-t border-border/40 bg-muted/20">
+              <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                Company-level Emails <span className="text-xs font-normal text-muted-foreground ml-2">(Publicly discovered)</span>
+              </h3>
+              <ul className="space-y-2">
+                {emails.filter(e => !e.person_id).map((e) => (
+                  <li key={e.id} className="text-sm text-foreground flex items-center justify-between bg-background p-3 border rounded-md">
+                    <div className="flex flex-col gap-1">
+                      <div>
+                        <a href={`mailto:${e.email}`} className="font-medium hover:text-primary transition-colors">{e.email}</a>
+                        <span className="ml-2 text-xs px-2 py-0.5 bg-secondary text-secondary-foreground rounded-full capitalize">{e.email_type}</span>
+                        {e.source_url && (
+                          <a href={e.source_url} target="_blank" rel="noopener noreferrer" className="ml-2 text-xs text-muted-foreground hover:underline">Source</a>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-medium ${
+                          e.verification_status === 'valid_format' ? 'text-green-600' :
+                          e.verification_status === 'no_mail_server' || e.verification_status === 'domain_not_found' ? 'text-destructive' :
+                          e.verification_status === 'unverified' || !e.verification_status ? 'text-muted-foreground' : 'text-yellow-600'
+                        }`}>
+                          {e.verification_status === 'valid_format' ? 'Mail server found' :
+                           e.verification_status === 'no_mail_server' ? 'No mail server' :
+                           e.verification_status === 'domain_not_found' ? 'Domain not found' :
+                           e.verification_status === 'unverified' || !e.verification_status ? 'Unverified' : 'Could not verify'}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <button
+                        onClick={() => handleVerifyEmail(e.id)}
+                        disabled={verifyingEmailIds.has(e.id) || !!bulkVerifying}
+                        className="text-xs font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 px-2 py-1 rounded transition-colors disabled:opacity-50"
+                      >
+                        {verifyingEmailIds.has(e.id) ? "Verifying..." : "Verify"}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
       {people && (
-        <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-border/40">
-            <h2 className="text-xl font-semibold text-foreground">People found</h2>
-            <p className="text-sm text-muted-foreground mt-1">Discovered {people.length} people publicly associated with the company.</p>
+        <div className="bg-card rounded-xl border shadow-sm overflow-hidden mt-6">
+          <div className="p-6 border-b border-border/40 flex justify-between items-start flex-col sm:flex-row gap-4">
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">People found</h2>
+              <p className="text-sm text-muted-foreground mt-1">Discovered {people.length} people publicly associated with the company.</p>
+            </div>
+            {people.length > 0 && (
+              <div className="flex flex-wrap items-center gap-3 justify-end">
+                <div className="flex flex-col items-end">
+                  <button
+                    onClick={handleRankPeople}
+                    disabled={rankingPeople}
+                    className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2"
+                  >
+                    {rankingPeople ? "Analyzing roles..." : "Rank decision makers"}
+                  </button>
+                  {rankError && <p className="text-sm text-destructive mt-2">{rankError}</p>}
+                </div>
+                
+                <div className="flex flex-col items-end">
+                  <button
+                    onClick={handleExtractEmails}
+                    disabled={extractingEmails}
+                    className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2"
+                  >
+                    {extractingEmails ? "Finding emails..." : "Find public emails"}
+                  </button>
+                  {emailError && <p className="text-sm text-destructive mt-2">{emailError}</p>}
+                </div>
+                
+                {emails && emails.some(e => e.verification_status === "unverified" || !e.verification_status) && (
+                  <div className="flex flex-col items-end">
+                    <button
+                      onClick={handleBulkVerifyEmails}
+                      disabled={!!bulkVerifying}
+                      className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none bg-blue-600 text-white hover:bg-blue-700 h-9 px-4 py-2"
+                    >
+                      {bulkVerifying ? `Verifying...` : "Verify emails"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <div className="p-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {people.map((person) => (
@@ -260,6 +485,32 @@ export default function DiscoverPage() {
                     <p className="text-sm text-muted-foreground mt-1">{person.title}</p>
                   )}
                 </div>
+                
+                {person.decision_maker_score !== undefined && person.decision_maker_score !== null && (
+                  <div className="mt-4 pt-4 border-t border-border/40">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-xs font-medium text-foreground">
+                        {person.decision_maker_category === 'primary' && 'Primary decision-maker candidate'}
+                        {person.decision_maker_category === 'strong' && 'Strong candidate'}
+                        {person.decision_maker_category === 'possible' && 'Possible decision maker'}
+                        {person.decision_maker_category === 'unlikely' && 'Unlikely decision maker'}
+                        {!person.decision_maker_category && 'Analyzed'}
+                      </span>
+                      <span className="text-xs font-bold">{person.decision_maker_score}</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full ${
+                          person.decision_maker_category === 'primary' ? 'bg-green-500' : 
+                          person.decision_maker_category === 'strong' ? 'bg-blue-500' :
+                          person.decision_maker_category === 'possible' ? 'bg-yellow-500' : 'bg-muted-foreground'
+                        }`} 
+                        style={{ width: `${Math.max(0, Math.min(100, person.decision_maker_score))}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-4 pt-4 border-t flex flex-col gap-2 text-xs">
                   {person.profile_url && (
                     <a href={person.profile_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
@@ -272,6 +523,42 @@ export default function DiscoverPage() {
                     Source page
                   </a>
                 </div>
+
+                {emails && emails.filter(e => e.person_id === person.id).length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-border/40">
+                    <p className="text-xs font-semibold text-muted-foreground mb-2 flex justify-between">
+                      Discovered Emails <span className="font-normal">(Public)</span>
+                    </p>
+                    <ul className="space-y-3">
+                      {emails.filter(e => e.person_id === person.id).map(e => (
+                        <li key={e.id} className="text-sm flex flex-col gap-1">
+                          <div className="flex items-center justify-between">
+                            <a href={`mailto:${e.email}`} className="text-foreground font-medium hover:text-primary transition-colors">
+                              {e.email}
+                            </a>
+                            <button
+                              onClick={() => handleVerifyEmail(e.id)}
+                              disabled={verifyingEmailIds.has(e.id) || !!bulkVerifying}
+                              className="text-[10px] font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 px-2 py-1 rounded transition-colors disabled:opacity-50"
+                            >
+                              {verifyingEmailIds.has(e.id) ? "Verifying" : "Verify"}
+                            </button>
+                          </div>
+                          <span className={`text-[11px] font-medium ${
+                            e.verification_status === 'valid_format' ? 'text-green-600' :
+                            e.verification_status === 'no_mail_server' || e.verification_status === 'domain_not_found' ? 'text-destructive' :
+                            e.verification_status === 'unverified' || !e.verification_status ? 'text-muted-foreground' : 'text-yellow-600'
+                          }`}>
+                            {e.verification_status === 'valid_format' ? 'Mail server found' :
+                             e.verification_status === 'no_mail_server' ? 'No mail server' :
+                             e.verification_status === 'domain_not_found' ? 'Domain not found' :
+                             e.verification_status === 'unverified' || !e.verification_status ? 'Unverified' : 'Could not verify'}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             ))}
             {people.length === 0 && (
