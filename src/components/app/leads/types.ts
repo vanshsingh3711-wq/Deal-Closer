@@ -1,4 +1,4 @@
-export type LeadStatus = 'NEW' | 'CONTACTED' | 'OPENED' | 'REPLIED' | 'INTERESTED' | 'CLOSED';
+export type LeadStatus = string; // Using generic string to match backend LeadStage enum values
 export type SortOption = "Recently added" | "Recently contacted" | "Follow-up due" | "Company";
 
 export interface LeadActivity {
@@ -40,4 +40,5 @@ export interface Lead {
   note: LeadNote;
   archived?: boolean;
   verification_status?: 'unverified' | 'verified' | 'bad';
+  personalized_line?: string;
 }

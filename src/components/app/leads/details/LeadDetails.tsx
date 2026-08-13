@@ -27,7 +27,7 @@ export function LeadDetails({ lead }: { lead: Lead }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8 pb-12">
         {/* Left Column - Main Activity (2/3 width on desktop) */}
         <div className="lg:col-span-2 flex flex-col gap-6 order-2 lg:order-1">
-          <LeadActivityTimeline activities={lead.activities} />
+          <LeadActivityTimeline leadId={lead.id} addedAtMs={lead.addedAt} />
           <LeadOutreachHistory outreach={lead.outreach} />
           <LeadNotes note={lead.note} />
         </div>
@@ -36,7 +36,7 @@ export function LeadDetails({ lead }: { lead: Lead }) {
         <div className="flex flex-col gap-6 order-1 lg:order-2">
           <LeadInfo lead={lead} />
           <LeadVerification lead={lead} />
-          <LeadFollowUp nextFollowUp={lead.nextFollowUp} />
+          <LeadFollowUp leadId={lead.id} />
         </div>
       </div>
     </div>

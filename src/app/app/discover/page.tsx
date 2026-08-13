@@ -58,6 +58,68 @@ export default function DiscoverPage() {
   const [verifyingEmailIds, setVerifyingEmailIds] = useState<Set<string>>(new Set());
   const [bulkVerifying, setBulkVerifying] = useState<{current: number, total: number} | null>(null);
 
+  // Add to Leads modal state
+  const [leadModalData, setLeadModalData] = useState<{email: Email, person?: Person} | null>(null);
+  const [leadFormData, setLeadFormData] = useState({
+    name: "", company: "", email: "", website: "", linkedin_url: "", notes: ""
+  });
+  const [creatingLead, setCreatingLead] = useState(false);
+  const [leadSuccess, setLeadSuccess] = useState<string | null>(null);
+  const [leadError, setLeadError] = useState<string | null>(null);
+
+  const openLeadModal = (email: Email, person?: Person) => {
+    setLeadModalData({ email, person });
+    setLeadFormData({
+      name: person?.name || "",
+      company: result?.company?.name || result?.company?.domain || "",
+      email: email.email,
+      website: result?.company?.website || "",
+      linkedin_url: person?.profile_url && person.profile_url.includes("linkedin.com") ? person.profile_url : "",
+      notes: ""
+    });
+    setLeadSuccess(null);
+    setLeadError(null);
+  };
+
+  const handleCreateLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!leadModalData) return;
+    
+    setCreatingLead(true);
+    setLeadError(null);
+    
+    try {
+      const token = await getToken();
+      const res = await fetch(`http://localhost:8000/api/discovery/email/${leadModalData.email.id}/create-lead`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          ...(userId ? { "X-User-Id": userId } : {}),
+        },
+        body: JSON.stringify(leadFormData),
+      });
+
+      if (!res.ok) {
+        if (res.status === 409) {
+          throw new Error("Lead already exists for this email address.");
+        }
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "Failed to create lead");
+      }
+
+      setLeadSuccess("Lead created successfully!");
+      setTimeout(() => {
+        setLeadModalData(null);
+        setLeadSuccess(null);
+      }, 2000);
+    } catch (err: any) {
+      setLeadError(err.message || "An unexpected error occurred");
+    } finally {
+      setCreatingLead(false);
+    }
+  };
+
   const handleDiscover = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!website) return;
@@ -415,13 +477,21 @@ export default function DiscoverPage() {
                       </div>
                     </div>
                     <div>
-                      <button
-                        onClick={() => handleVerifyEmail(e.id)}
-                        disabled={verifyingEmailIds.has(e.id) || !!bulkVerifying}
-                        className="text-xs font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 px-2 py-1 rounded transition-colors disabled:opacity-50"
-                      >
-                        {verifyingEmailIds.has(e.id) ? "Verifying..." : "Verify"}
-                      </button>
+                      <div className="flex flex-col gap-2">
+                        <button
+                          onClick={() => handleVerifyEmail(e.id)}
+                          disabled={verifyingEmailIds.has(e.id) || !!bulkVerifying}
+                          className="text-xs font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 px-2 py-1 rounded transition-colors disabled:opacity-50"
+                        >
+                          {verifyingEmailIds.has(e.id) ? "Verifying..." : "Verify"}
+                        </button>
+                        <button
+                          onClick={() => openLeadModal(e)}
+                          className="text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 px-2 py-1 rounded transition-colors"
+                        >
+                          Add to Leads
+                        </button>
+                      </div>
                     </div>
                   </li>
                 ))}
@@ -536,13 +606,21 @@ export default function DiscoverPage() {
                             <a href={`mailto:${e.email}`} className="text-foreground font-medium hover:text-primary transition-colors">
                               {e.email}
                             </a>
-                            <button
-                              onClick={() => handleVerifyEmail(e.id)}
-                              disabled={verifyingEmailIds.has(e.id) || !!bulkVerifying}
-                              className="text-[10px] font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 px-2 py-1 rounded transition-colors disabled:opacity-50"
-                            >
-                              {verifyingEmailIds.has(e.id) ? "Verifying" : "Verify"}
-                            </button>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleVerifyEmail(e.id)}
+                                disabled={verifyingEmailIds.has(e.id) || !!bulkVerifying}
+                                className="text-[10px] font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 px-2 py-1 rounded transition-colors disabled:opacity-50"
+                              >
+                                {verifyingEmailIds.has(e.id) ? "Verifying" : "Verify"}
+                              </button>
+                              <button
+                                onClick={() => openLeadModal(e, person)}
+                                className="text-[10px] font-medium bg-primary text-primary-foreground hover:bg-primary/90 px-2 py-1 rounded transition-colors"
+                              >
+                                Add to Leads
+                              </button>
+                            </div>
                           </div>
                           <span className={`text-[11px] font-medium ${
                             e.verification_status === 'valid_format' ? 'text-green-600' :
@@ -566,6 +644,114 @@ export default function DiscoverPage() {
                 No people could be found on the public pages.
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {leadModalData && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card w-full max-w-lg rounded-xl shadow-lg border">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-xl font-semibold">Add to Leads</h2>
+              <button 
+                onClick={() => !creatingLead && setLeadModalData(null)}
+                className="text-muted-foreground hover:text-foreground p-2 -mr-2"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateLead} className="p-6 space-y-4">
+              {leadSuccess && (
+                <div className="p-3 bg-green-50 text-green-700 text-sm rounded-md border border-green-200">
+                  {leadSuccess}
+                </div>
+              )}
+              {leadError && (
+                <div className="p-3 bg-red-50 text-red-700 text-sm rounded-md border border-red-200">
+                  {leadError}
+                </div>
+              )}
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Name</label>
+                  <input 
+                    type="text" 
+                    value={leadFormData.name} 
+                    onChange={e => setLeadFormData({...leadFormData, name: e.target.value})}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Company</label>
+                  <input 
+                    type="text" 
+                    value={leadFormData.company} 
+                    onChange={e => setLeadFormData({...leadFormData, company: e.target.value})}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Email</label>
+                <input 
+                  type="email" 
+                  value={leadFormData.email} 
+                  onChange={e => setLeadFormData({...leadFormData, email: e.target.value})}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Website (Optional)</label>
+                <input 
+                  type="url" 
+                  value={leadFormData.website} 
+                  onChange={e => setLeadFormData({...leadFormData, website: e.target.value})}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">LinkedIn URL (Optional)</label>
+                <input 
+                  type="url" 
+                  value={leadFormData.linkedin_url} 
+                  onChange={e => setLeadFormData({...leadFormData, linkedin_url: e.target.value})}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Notes (Optional)</label>
+                <textarea 
+                  value={leadFormData.notes} 
+                  onChange={e => setLeadFormData({...leadFormData, notes: e.target.value})}
+                  className="w-full h-20 rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
+                  placeholder="Custom notes to append to this lead..."
+                />
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => setLeadModalData(null)}
+                  disabled={creatingLead}
+                  className="h-9 px-4 py-2 rounded-md border text-sm font-medium hover:bg-accent disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={creatingLead}
+                  className="h-9 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {creatingLead ? "Adding..." : "Add Lead"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
