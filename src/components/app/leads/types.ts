@@ -38,4 +38,6 @@ export interface Lead {
   activities: LeadActivity[];
   outreach: LeadOutreach[];
   note: LeadNote;
+  archived?: boolean;
+  verification_status?: 'unverified' | 'verified' | 'bad';
 }

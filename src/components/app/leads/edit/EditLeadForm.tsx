@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-type CreateLeadInput = {
+type EditLeadInput = {
   name: string;
   email: string;
   jobTitle: string;
@@ -16,10 +16,10 @@ type CreateLeadInput = {
   notes: string;
 };
 
-export function AddLeadForm() {
+export function EditLeadForm({ leadId }: { leadId: string }) {
   const router = useRouter();
   
-  const [formData, setFormData] = useState<CreateLeadInput>({
+  const [formData, setFormData] = useState<EditLeadInput>({
     name: "",
     email: "",
     jobTitle: "",
@@ -31,12 +31,46 @@ export function AddLeadForm() {
     notes: ""
   });
   
-  const [errors, setErrors] = useState<Partial<Record<keyof CreateLeadInput, string>>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof EditLeadInput, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchLead() {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const response = await fetch(`${apiUrl}/api/leads/${leadId}`);
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error("Lead not found.");
+          }
+          throw new Error("Unable to load this lead. Please try again.");
+        }
+        const data = await response.json();
+        
+        setFormData({
+          name: data.name || "",
+          email: data.email || "",
+          jobTitle: "", // Not in phase 1 backend
+          company: data.company || "",
+          website: data.website || "",
+          linkedin: data.linkedin_url || "",
+          source: data.source || "manual",
+          status: data.stage || "new",
+          notes: data.notes || ""
+        });
+      } catch (err: any) {
+        setFetchError(err.message || "Failed to load lead");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchLead();
+  }, [leadId]);
 
   const validate = () => {
-    const newErrors: Partial<Record<keyof CreateLeadInput, string>> = {};
+    const newErrors: Partial<Record<keyof EditLeadInput, string>> = {};
     
     if (!formData.name.trim()) newErrors.name = "Full name is required";
     if (!formData.company.trim()) newErrors.company = "Company is required";
@@ -73,12 +107,11 @@ export function AddLeadForm() {
           source: formData.source,
           stage: formData.status,
           notes: formData.notes || undefined,
-          // jobTitle is currently not in backend model, skipping
         };
 
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-        const response = await fetch(`${apiUrl}/api/leads`, {
-          method: "POST",
+        const response = await fetch(`${apiUrl}/api/leads/${leadId}`, {
+          method: "PATCH",
           headers: {
             "Content-Type": "application/json",
           },
@@ -86,50 +119,46 @@ export function AddLeadForm() {
         });
 
         if (!response.ok) {
+          if (response.status === 409) {
+            throw new Error("Another lead already uses this email.");
+          }
+          if (response.status === 404) {
+            throw new Error("Lead not found.");
+          }
           const errorData = await response.json();
-          throw new Error(errorData.detail || "Failed to add lead");
+          throw new Error(errorData.detail || "Unable to update this lead. Please try again.");
         }
         
-        setIsSuccess(true);
+        router.push(`/app/leads/${leadId}`);
+        router.refresh(); // Refresh to show new data
       } catch (err: any) {
-        setErrors({...errors, email: err.message || "Failed to add lead"});
+        setErrors({...errors, email: err.message || "Unable to update this lead. Please try again."});
       } finally {
         setIsSubmitting(false);
       }
     }
   };
 
-  if (isSuccess) {
+  if (isLoading) {
     return (
-      <div className="flex flex-col h-full max-w-[800px] mx-auto py-12 md:py-24">
-        <div className="flex flex-col items-center justify-center p-8 md:p-16 text-center rounded-2xl border border-border/40 bg-surface/20 shadow-sm">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 mb-6 border border-emerald-500/20">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500"><polyline points="20 6 9 17 4 12"></polyline></svg>
-          </div>
-          <h2 className="text-2xl font-bold text-foreground tracking-tight mb-2">Lead added</h2>
-          <p className="text-muted-foreground mb-10 max-w-sm leading-relaxed">
-            <span className="font-medium text-foreground">{formData.name}</span> has been added to your pipeline.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-            <button 
-              onClick={() => {
-                setFormData({
-                  name: "", email: "", jobTitle: "", company: "", website: "", linkedin: "", source: "manual", status: "new", notes: ""
-                });
-                setIsSuccess(false);
-              }}
-              className="inline-flex h-10 items-center justify-center rounded-md border border-border/60 bg-surface/50 px-6 font-medium text-foreground transition-all hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-            >
-              Add another lead
-            </button>
-            <Link 
-              href="/app/leads"
-              className="inline-flex h-10 items-center justify-center rounded-md bg-accent px-6 font-medium text-accent-foreground shadow-sm transition-all hover:bg-accent-hover hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-            >
-              View leads
-            </Link>
-          </div>
-        </div>
+      <div className="flex flex-col h-full max-w-[800px] mx-auto py-24 text-center">
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-accent border-r-transparent mb-4"></div>
+        <p className="text-sm text-muted-foreground font-medium">Loading lead...</p>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="flex flex-col h-full max-w-[800px] mx-auto py-24 text-center">
+        <h2 className="text-xl font-bold text-foreground mb-2">Error</h2>
+        <p className="text-muted-foreground mb-6">{fetchError}</p>
+        <Link 
+          href={`/app/leads/${leadId}`}
+          className="inline-flex h-10 items-center justify-center rounded-md bg-accent px-6 font-medium text-accent-foreground shadow-sm transition-all hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          Back to lead
+        </Link>
       </div>
     );
   }
@@ -138,17 +167,17 @@ export function AddLeadForm() {
     <div className="flex flex-col h-full max-w-[800px] mx-auto">
       <div className="mb-6">
         <Link 
-          href="/app/leads" 
+          href={`/app/leads/${leadId}`} 
           className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-foreground transition-colors group"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5 transition-transform group-hover:-translate-x-0.5"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-          Back to leads
+          Back to lead
         </Link>
       </div>
 
       <div className="mb-8">
-        <h1 className="text-2xl font-extrabold text-foreground tracking-tight mb-1">Add lead</h1>
-        <p className="text-sm text-muted-foreground font-medium">Add a prospect to your outreach pipeline.</p>
+        <h1 className="text-2xl font-extrabold text-foreground tracking-tight mb-1">Edit lead</h1>
+        <p className="text-sm text-muted-foreground font-medium">Update this prospect's information.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-10 pb-12">
@@ -322,7 +351,7 @@ export function AddLeadForm() {
 
         <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-4 pt-4 mt-4 border-t border-border/20">
           <Link 
-            href="/app/leads"
+            href={`/app/leads/${leadId}`}
             className="w-full sm:w-auto inline-flex h-10 items-center justify-center rounded-md px-6 font-medium text-foreground transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             Cancel
@@ -338,10 +367,10 @@ export function AddLeadForm() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Adding...
+                Saving...
               </>
             ) : (
-              "Add lead"
+              "Save changes"
             )}
           </button>
         </div>

@@ -11,6 +11,7 @@ const getPageTitle = (pathname: string) => {
     case "/app/leads": return "Leads";
     case "/app/outreach": return "Outreach";
     case "/app/templates": return "Templates";
+    case "/app/discover": return "Discover";
     case "/app/follow-ups": return "Follow-ups";
     case "/app/analytics": return "Analytics";
     case "/app/settings": return "Settings";
