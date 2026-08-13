@@ -6,6 +6,7 @@ import { LeadInfo } from "./LeadInfo";
 import { LeadOutreachHistory } from "./LeadOutreachHistory";
 import { LeadFollowUp } from "./LeadFollowUp";
 import { LeadNotes } from "./LeadNotes";
+import { LeadVerification } from "./LeadVerification";
 
 export function LeadDetails({ lead }: { lead: Lead }) {
   return (
@@ -34,6 +35,7 @@ export function LeadDetails({ lead }: { lead: Lead }) {
         {/* Right Column - Info Sidebar (1/3 width on desktop) */}
         <div className="flex flex-col gap-6 order-1 lg:order-2">
           <LeadInfo lead={lead} />
+          <LeadVerification lead={lead} />
           <LeadFollowUp nextFollowUp={lead.nextFollowUp} />
         </div>
       </div>

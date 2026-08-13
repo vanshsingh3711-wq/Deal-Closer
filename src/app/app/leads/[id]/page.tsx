@@ -38,7 +38,8 @@ async function fetchLead(id: string): Promise<Lead | null> {
       followUpAt: 0,
       activities: [],
       outreach: [],
-      note: { id: "n1", content: data.notes || "", updatedAt: data.date_added }
+      note: { id: "n1", content: data.notes || "", updatedAt: data.date_added },
+      verification_status: data.verification_status || 'unverified'
     };
   } catch (error) {
     console.error("Failed to fetch lead:", error);

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { proxyFetch } from "@/proxy";
 
 export function ArchiveLeadDialog({ 
   leadId, 
@@ -23,7 +22,8 @@ export function ArchiveLeadDialog({
     setIsArchiving(true);
     setError(null);
     try {
-      const res = await proxyFetch(`/api/leads/${leadId}/archive`, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${apiUrl}/api/leads/${leadId}/archive`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
