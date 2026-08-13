@@ -1,5 +1,5 @@
-import { LeadList } from "@/components/app/leads/LeadList";
+import { LeadPipeline } from "@/components/app/leads/LeadPipeline";
 
 export default function LeadsPage() {
-  return <LeadList />;
+  return <LeadPipeline />;
 }
