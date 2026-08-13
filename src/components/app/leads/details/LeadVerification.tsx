@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Lead } from "../types";
 import { useRouter } from "next/navigation";
-import { AlertCircle, CheckCircle2, MailWarning, Loader2 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 
 export function LeadVerification({ lead }: { lead: Lead }) {
@@ -53,9 +52,9 @@ export function LeadVerification({ lead }: { lead: Lead }) {
     <div className="rounded-xl border border-border/40 bg-surface/20 shadow-sm flex flex-col">
       <div className="p-5 border-b border-border/40 flex justify-between items-center">
         <h2 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Email Verification</h2>
-        {status === 'verified' && <CheckCircle2 className="w-4 h-4 text-green-500" />}
-        {status === 'bad' && <MailWarning className="w-4 h-4 text-red-500" />}
-        {status === 'unverified' && <AlertCircle className="w-4 h-4 text-amber-500" />}
+        {status === 'verified' && <svg className="w-4 h-4 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>}
+        {status === 'bad' && <svg className="w-4 h-4 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>}
+        {status === 'unverified' && <svg className="w-4 h-4 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>}
       </div>
       
       <div className="p-5">
@@ -88,7 +87,7 @@ export function LeadVerification({ lead }: { lead: Lead }) {
           >
             {isVerifying ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
                 Verifying...
               </>
             ) : (
